@@ -66,52 +66,71 @@ pip install -e "C:\ruta\a\rag_engine_lib[all]"
 
 Hay dos formas de configurar las API keys. Usa la que prefieras.
 
-### Opcion A: Pasar las keys por codigo
+### Opcion A: Pasar las keys por codigo (recomendado)
 
-La forma recomendada. Te permite cargar las keys desde un archivo `.env`, una base de datos, un secrets manager, o como quieras. La libreria las recibe y las usa directamente.
+La forma mas clara y explicita. Vos controlas de donde vienen las keys: un archivo `.env`, una base de datos, un secrets manager, o hardcodeadas para pruebas rapidas.
 
 ```python
 import os
 from dotenv import load_dotenv  # pip install python-dotenv
+from rag_engine import (
+    RAGEngine,
+    ConfigRAGElements,
+    VectorDBConfig,
+    VectorDBType,
+    LLMConfig,
+    LLMProvider,
+)
 
 load_dotenv()  # carga variables desde un archivo .env
 
 config = ConfigRAGElements(
     llm=LLMConfig(
         provider=LLMProvider.GOOGLE,
-        api_key=os.getenv("MI_GOOGLE_KEY"),
+        embedding_model="models/gemini-embedding-001",
+        query_model="models/gemini-2.5-flash",
+        generation_model="models/gemini-2.5-flash",
+        api_key=os.getenv("MI_GOOGLE_KEY"),       # <-- tu API key de Google
     ),
     vector_db=VectorDBConfig(
         db_type=VectorDBType.PINECONE,
         pinecone_index_name="mi-indice",
-        pinecone_api_key=os.getenv("MI_PINECONE_KEY"),
+        pinecone_api_key=os.getenv("MI_PINECONE_KEY"),  # <-- tu API key de Pinecone
     ),
 )
+
+engine = RAGEngine(config=config)
 ```
 
-Con un archivo `.env` en la raiz de tu proyecto:
+El archivo `.env` en la raiz de tu proyecto:
 
 ```env
 MI_GOOGLE_KEY=AIzaSy...
 MI_PINECONE_KEY=pcsk_...
-MI_OPENAI_KEY=sk-...
 ```
+
+Los nombres de las variables en el `.env` los elegis vos. Pueden ser `MI_GOOGLE_KEY`, `GOOGLE_KEY`, `API_GEMINI`, o lo que quieras — vos los lees con `os.getenv()` y se los pasas a la config.
 
 **Importante:** Agrega `.env` a tu `.gitignore` para no subir las keys al repositorio.
 
 ### Opcion B: Variables de entorno del sistema
 
-Si no pasas `api_key` en la config, la libreria deja que LangChain las busque automaticamente en las variables de entorno estandar.
+Si **no** pasas `api_key` en la config (lo dejas en `None`), la libreria no falla — simplemente deja que LangChain busque las keys en variables de entorno con nombres fijos:
 
-**Windows (cmd):**
+- Google busca: `GOOGLE_API_KEY`
+- OpenAI busca: `OPENAI_API_KEY`
+- Pinecone busca: `PINECONE_API_KEY`
+
+Para setearlas:
+
+**Windows (cmd) — dura solo mientras la terminal este abierta:**
 
 ```bash
 set GOOGLE_API_KEY=tu_google_api_key
-set OPENAI_API_KEY=tu_openai_api_key
 set PINECONE_API_KEY=tu_pinecone_api_key
 ```
 
-**Windows (permanente, sobrevive al cerrar la terminal):**
+**Windows (permanente) — queda para siempre en el sistema:**
 
 ```bash
 setx GOOGLE_API_KEY "tu_google_api_key"
@@ -121,21 +140,9 @@ setx GOOGLE_API_KEY "tu_google_api_key"
 
 ```bash
 export GOOGLE_API_KEY=tu_google_api_key
-export OPENAI_API_KEY=tu_openai_api_key
-export PINECONE_API_KEY=tu_pinecone_api_key
 ```
 
-Solo necesitas configurar las keys de los proveedores que vayas a usar.
-
-### Resumen
-
-| Parametro              | Variable de entorno     | Donde se configura |
-|------------------------|-------------------------|--------------------|
-| `LLMConfig.api_key`    | `GOOGLE_API_KEY`        | LLM y embeddings de Google |
-| `LLMConfig.api_key`    | `OPENAI_API_KEY`        | LLM y embeddings de OpenAI |
-| `VectorDBConfig.pinecone_api_key` | `PINECONE_API_KEY` | Conexion a Pinecone |
-
-Si pasas `api_key` en la config, tiene prioridad sobre la variable de entorno.
+Esta opcion es mas simple (no necesitas `python-dotenv` ni `os.getenv`) pero es menos explicita: las keys quedan "invisibles" en el entorno del sistema y no se ve en tu codigo de donde vienen.
 
 ---
 
@@ -154,6 +161,7 @@ config = ConfigRAGElements(
         embedding_model="models/gemini-embedding-001",
         query_model="models/gemini-2.5-flash",
         generation_model="models/gemini-2.5-flash",
+        api_key="tu_google_api_key",
     ),
     vector_db=VectorDBConfig(
         path="./mi_chroma_db",
@@ -193,12 +201,20 @@ Despues de ingestar, ya podes consultar usando el ejemplo del paso 1.
 Solo cambia la configuracion del vector_db:
 
 ```python
-from rag_engine import ConfigRAGElements, VectorDBConfig, VectorDBType
+from rag_engine import ConfigRAGElements, VectorDBConfig, VectorDBType, LLMConfig, LLMProvider
 
 config = ConfigRAGElements(
+    llm=LLMConfig(
+        provider=LLMProvider.GOOGLE,
+        embedding_model="models/gemini-embedding-001",
+        query_model="models/gemini-2.5-flash",
+        generation_model="models/gemini-2.5-flash",
+        api_key="tu_google_api_key",
+    ),
     vector_db=VectorDBConfig(
         db_type=VectorDBType.PINECONE,
         pinecone_index_name="mi-indice",
+        pinecone_api_key="tu_pinecone_api_key",
     ),
 )
 ```
@@ -212,7 +228,7 @@ Todo lo demas (engine, ingestion, queries) funciona exactamente igual.
 Solo cambia la configuracion del LLM:
 
 ```python
-from rag_engine import LLMConfig, LLMProvider
+from rag_engine import ConfigRAGElements, VectorDBConfig, LLMConfig, LLMProvider
 
 config = ConfigRAGElements(
     llm=LLMConfig(
@@ -220,6 +236,7 @@ config = ConfigRAGElements(
         embedding_model="text-embedding-3-small",
         query_model="gpt-4o-mini",
         generation_model="gpt-4o",
+        api_key="tu_openai_api_key",
     ),
     vector_db=VectorDBConfig(path="./mi_chroma_db"),
 )
