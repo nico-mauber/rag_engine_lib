@@ -30,7 +30,10 @@ class PineconeProvider(VectorStoreProvider):
         from langchain_pinecone import PineconeVectorStore
 
         logger.info("Conectando a Pinecone index=%s", config.pinecone_index_name)
-        return PineconeVectorStore(
-            index_name=config.pinecone_index_name,
-            embedding=embeddings,
-        )
+        kwargs: dict = {
+            "index_name": config.pinecone_index_name,
+            "embedding": embeddings,
+        }
+        if config.pinecone_api_key:
+            kwargs["pinecone_api_key"] = config.pinecone_api_key
+        return PineconeVectorStore(**kwargs)

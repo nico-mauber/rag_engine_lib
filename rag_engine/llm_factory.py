@@ -25,13 +25,19 @@ def create_embeddings(config: LLMConfig) -> Embeddings:
         from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
         logger.info("Creando embeddings Google: %s", config.embedding_model)
-        return GoogleGenerativeAIEmbeddings(model=config.embedding_model)
+        kwargs: dict = {"model": config.embedding_model}
+        if config.api_key:
+            kwargs["google_api_key"] = config.api_key
+        return GoogleGenerativeAIEmbeddings(**kwargs)
 
     if config.provider == LLMProvider.OPENAI:
         from langchain_openai import OpenAIEmbeddings
 
         logger.info("Creando embeddings OpenAI: %s", config.embedding_model)
-        return OpenAIEmbeddings(model=config.embedding_model)
+        kwargs = {"model": config.embedding_model}
+        if config.api_key:
+            kwargs["api_key"] = config.api_key
+        return OpenAIEmbeddings(**kwargs)
 
     raise ValueError(f"Proveedor de embeddings no soportado: {config.provider}")
 
@@ -56,12 +62,18 @@ def create_llm(
         from langchain_google_genai import ChatGoogleGenerativeAI
 
         logger.info("Creando LLM Google: %s (temp=%.1f)", model, temperature)
-        return ChatGoogleGenerativeAI(model=model, temperature=temperature)
+        kwargs: dict = {"model": model, "temperature": temperature}
+        if config.api_key:
+            kwargs["google_api_key"] = config.api_key
+        return ChatGoogleGenerativeAI(**kwargs)
 
     if config.provider == LLMProvider.OPENAI:
         from langchain_openai import ChatOpenAI
 
         logger.info("Creando LLM OpenAI: %s (temp=%.1f)", model, temperature)
-        return ChatOpenAI(model=model, temperature=temperature)
+        kwargs = {"model": model, "temperature": temperature}
+        if config.api_key:
+            kwargs["api_key"] = config.api_key
+        return ChatOpenAI(**kwargs)
 
     raise ValueError(f"Proveedor de LLM no soportado: {config.provider}")

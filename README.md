@@ -15,7 +15,7 @@ Biblioteca Python para construir sistemas RAG (Retrieval-Augmented Generation) c
 - **Busqueda hibrida** — Combina MMR (Maximal Marginal Relevance), MultiQuery y Ensemble para maximizar la calidad del retrieval.
 - **Ingesta standalone** — `DocumentIngester` permite cargar PDFs sin necesidad de instanciar el engine completo.
 - **Configuracion compuesta** — Sub-dataclasses para LLM, vector DB, retriever y splitter. Sin god objects.
-- **API keys via entorno** — Las credenciales se leen de variables de entorno (`GOOGLE_API_KEY`, `OPENAI_API_KEY`, `PINECONE_API_KEY`), nunca se ponen en el codigo.
+- **API keys flexibles** — Se pueden pasar por codigo (desde un `.env`, base de datos, etc.) o dejar que se resuelvan automaticamente desde variables de entorno.
 
 ---
 
@@ -58,9 +58,46 @@ pip install -e "C:\ruta\a\rag_engine_lib[openai,chroma]"
 
 ## Configuracion de API keys
 
-Las keys se configuran como variables de entorno. Nunca se pasan en el codigo.
+Hay dos formas de configurar las API keys. Usa la que prefieras.
 
-### Windows (cmd)
+### Opcion A: Pasar las keys por codigo
+
+La forma recomendada. Te permite cargar las keys desde un archivo `.env`, una base de datos, un secrets manager, o como quieras. La libreria las recibe y las usa directamente.
+
+```python
+import os
+from dotenv import load_dotenv  # pip install python-dotenv
+
+load_dotenv()  # carga variables desde un archivo .env
+
+config = ConfigRAGElements(
+    llm=LLMConfig(
+        provider=LLMProvider.GOOGLE,
+        api_key=os.getenv("MI_GOOGLE_KEY"),
+    ),
+    vector_db=VectorDBConfig(
+        db_type=VectorDBType.PINECONE,
+        pinecone_index_name="mi-indice",
+        pinecone_api_key=os.getenv("MI_PINECONE_KEY"),
+    ),
+)
+```
+
+Con un archivo `.env` en la raiz de tu proyecto:
+
+```env
+MI_GOOGLE_KEY=AIzaSy...
+MI_PINECONE_KEY=pcsk_...
+MI_OPENAI_KEY=sk-...
+```
+
+**Importante:** Agrega `.env` a tu `.gitignore` para no subir las keys al repositorio.
+
+### Opcion B: Variables de entorno del sistema
+
+Si no pasas `api_key` en la config, la libreria deja que LangChain las busque automaticamente en las variables de entorno estandar.
+
+**Windows (cmd):**
 
 ```bash
 set GOOGLE_API_KEY=tu_google_api_key
@@ -68,7 +105,13 @@ set OPENAI_API_KEY=tu_openai_api_key
 set PINECONE_API_KEY=tu_pinecone_api_key
 ```
 
-### Linux / macOS
+**Windows (permanente, sobrevive al cerrar la terminal):**
+
+```bash
+setx GOOGLE_API_KEY "tu_google_api_key"
+```
+
+**Linux / macOS:**
 
 ```bash
 export GOOGLE_API_KEY=tu_google_api_key
@@ -77,6 +120,16 @@ export PINECONE_API_KEY=tu_pinecone_api_key
 ```
 
 Solo necesitas configurar las keys de los proveedores que vayas a usar.
+
+### Resumen
+
+| Parametro              | Variable de entorno     | Donde se configura |
+|------------------------|-------------------------|--------------------|
+| `LLMConfig.api_key`    | `GOOGLE_API_KEY`        | LLM y embeddings de Google |
+| `LLMConfig.api_key`    | `OPENAI_API_KEY`        | LLM y embeddings de OpenAI |
+| `VectorDBConfig.pinecone_api_key` | `PINECONE_API_KEY` | Conexion a Pinecone |
+
+Si pasas `api_key` en la config, tiene prioridad sobre la variable de entorno.
 
 ---
 
@@ -182,6 +235,7 @@ La configuracion se compone de sub-dataclasses independientes:
 | `generation_model`     | str          | `models/gemini-2.5-flash`      | Modelo para generar respuestas       |
 | `query_temperature`    | float        | `0.0`                          | Temperatura del modelo de consultas  |
 | `generation_temperature` | float      | `0.0`                          | Temperatura del modelo de generacion |
+| `api_key`              | str o None   | None                           | API key del proveedor LLM. Si es None, se busca en variables de entorno |
 
 ### VectorDBConfig
 
@@ -191,6 +245,7 @@ La configuracion se compone de sub-dataclasses independientes:
 | `path`                | str o None   | None         | Ruta al directorio de ChromaDB (requerido para CHROMA) |
 | `collection`          | str          | `langchain`  | Nombre de la coleccion en ChromaDB         |
 | `pinecone_index_name` | str o None   | None         | Nombre del indice en Pinecone (requerido para PINECONE) |
+| `pinecone_api_key`    | str o None   | None         | API key de Pinecone. Si es None, se busca en variables de entorno |
 
 ### RetrieverConfig
 
@@ -277,19 +332,45 @@ cd mi_proyecto
 python -m venv venv
 venv\Scripts\activate
 
-# 2. Instalar la libreria
-pip install -e "C:\ruta\a\rag_engine_lib[google,chroma,hybrid,pdf]"
+# 2. Instalar la libreria desde GitHub
+pip install "rag-engine[all] @ git+https://github.com/nico-mauber/rag_engine_lib.git"
 
-# 3. Configurar API key
-set GOOGLE_API_KEY=tu_api_key
+# 3. (Opcional) Instalar python-dotenv para cargar keys desde .env
+pip install python-dotenv
+```
 
-# 4. Crear main.py (ver ejemplos arriba)
+Crear un archivo `.env`:
 
-# 5. Si necesitas ingestar PDFs, crear ingestar.py (ver ejemplos arriba)
+```env
+GOOGLE_API_KEY=AIzaSy...
+```
 
-# 6. Ejecutar
-python ingestar.py    # solo la primera vez
-python main.py        # consultar
+Crear `main.py`:
+
+```python
+import os
+from dotenv import load_dotenv
+from rag_engine import RAGEngine, ConfigRAGElements, VectorDBConfig, LLMConfig, LLMProvider
+
+load_dotenv()
+
+config = ConfigRAGElements(
+    llm=LLMConfig(
+        provider=LLMProvider.GOOGLE,
+        api_key=os.getenv("GOOGLE_API_KEY"),
+    ),
+    vector_db=VectorDBConfig(path="./mi_chroma_db"),
+)
+
+engine = RAGEngine(config=config)
+response = engine.query("Tu pregunta aqui")
+print(response.answer)
+```
+
+Ejecutar:
+
+```bash
+python main.py
 ```
 
 ---

@@ -35,7 +35,11 @@ class SearchType(str, Enum):
 
 @dataclass(frozen=True)
 class LLMConfig:
-    """Configuracion de modelos LLM y embeddings."""
+    """Configuracion de modelos LLM y embeddings.
+
+    api_key: Si se proporciona, se usa directamente. Si es None,
+    el proveedor la busca en variables de entorno (GOOGLE_API_KEY, OPENAI_API_KEY).
+    """
 
     provider: LLMProvider = LLMProvider.GOOGLE
     embedding_model: str = "models/gemini-embedding-001"
@@ -43,6 +47,7 @@ class LLMConfig:
     generation_model: str = "models/gemini-2.5-flash"
     query_temperature: float = 0.0
     generation_temperature: float = 0.0
+    api_key: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -53,6 +58,7 @@ class VectorDBConfig:
     path: Optional[str] = None
     collection: str = "langchain"
     pinecone_index_name: Optional[str] = None
+    pinecone_api_key: Optional[str] = None
 
     def __post_init__(self) -> None:
         if self.db_type == VectorDBType.CHROMA and not self.path:
