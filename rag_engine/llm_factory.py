@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
 
-from rag_engine.config import ConfigRAGElements, LLMProvider
+from rag_engine.config import LLMProvider
 
 if TYPE_CHECKING:
     from rag_engine.config import LLMConfig
@@ -17,27 +17,24 @@ logger = logging.getLogger(__name__)
 
 
 def create_embeddings(config: LLMConfig) -> Embeddings:
-    """Crea una instancia de embeddings segun el proveedor configurado.
-
-    Las API keys se resuelven desde variables de entorno por LangChain.
-    """
+    """Crea una instancia de embeddings segun el proveedor configurado."""
     if config.provider == LLMProvider.GOOGLE:
         from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
         logger.info("Creando embeddings Google: %s", config.embedding_model)
-        kwargs: dict = {"model": config.embedding_model}
-        if config.api_key:
-            kwargs["google_api_key"] = config.api_key
-        return GoogleGenerativeAIEmbeddings(**kwargs)
+        return GoogleGenerativeAIEmbeddings(
+            model=config.embedding_model,
+            google_api_key=config.api_key,
+        )
 
     if config.provider == LLMProvider.OPENAI:
         from langchain_openai import OpenAIEmbeddings
 
         logger.info("Creando embeddings OpenAI: %s", config.embedding_model)
-        kwargs = {"model": config.embedding_model}
-        if config.api_key:
-            kwargs["api_key"] = config.api_key
-        return OpenAIEmbeddings(**kwargs)
+        return OpenAIEmbeddings(
+            model=config.embedding_model,
+            api_key=config.api_key,
+        )
 
     raise ValueError(f"Proveedor de embeddings no soportado: {config.provider}")
 
@@ -48,13 +45,7 @@ def create_llm(
     model: str | None = None,
     temperature: float | None = None,
 ) -> BaseChatModel:
-    """Crea una instancia de LLM segun el proveedor configurado.
-
-    Args:
-        config: Configuracion LLM.
-        model: Override del modelo (por defecto usa generation_model).
-        temperature: Override de la temperatura (por defecto usa generation_temperature).
-    """
+    """Crea una instancia de LLM segun el proveedor configurado."""
     model = model or config.generation_model
     temperature = temperature if temperature is not None else config.generation_temperature
 
@@ -62,18 +53,20 @@ def create_llm(
         from langchain_google_genai import ChatGoogleGenerativeAI
 
         logger.info("Creando LLM Google: %s (temp=%.1f)", model, temperature)
-        kwargs: dict = {"model": model, "temperature": temperature}
-        if config.api_key:
-            kwargs["google_api_key"] = config.api_key
-        return ChatGoogleGenerativeAI(**kwargs)
+        return ChatGoogleGenerativeAI(
+            model=model,
+            temperature=temperature,
+            google_api_key=config.api_key,
+        )
 
     if config.provider == LLMProvider.OPENAI:
         from langchain_openai import ChatOpenAI
 
         logger.info("Creando LLM OpenAI: %s (temp=%.1f)", model, temperature)
-        kwargs = {"model": model, "temperature": temperature}
-        if config.api_key:
-            kwargs["api_key"] = config.api_key
-        return ChatOpenAI(**kwargs)
+        return ChatOpenAI(
+            model=model,
+            temperature=temperature,
+            api_key=config.api_key,
+        )
 
     raise ValueError(f"Proveedor de LLM no soportado: {config.provider}")

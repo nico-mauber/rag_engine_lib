@@ -37,26 +37,46 @@ class SearchType(str, Enum):
 class LLMConfig:
     """Configuracion de modelos LLM y embeddings.
 
-    api_key: Si se proporciona, se usa directamente. Si es None,
-    el proveedor la busca en variables de entorno (GOOGLE_API_KEY, OPENAI_API_KEY).
+    Campos obligatorios (el usuario debe proporcionarlos siempre):
+        provider, embedding_model, query_model, generation_model, api_key
+
+    Campos opcionales (tienen valores por defecto):
+        query_temperature, generation_temperature
     """
 
-    provider: LLMProvider = LLMProvider.GOOGLE
-    embedding_model: str = "models/gemini-embedding-001"
-    query_model: str = "models/gemini-2.5-flash"
-    generation_model: str = "models/gemini-2.5-flash"
+    # --- Obligatorios (sin default → error si no se pasan) ---
+    provider: LLMProvider
+    embedding_model: str
+    query_model: str
+    generation_model: str
+    api_key: str
+
+    # --- Opcionales (con default) ---
     query_temperature: float = 0.0
     generation_temperature: float = 0.0
-    api_key: Optional[str] = None
 
 
 @dataclass(frozen=True)
 class VectorDBConfig:
-    """Configuracion del vector store."""
+    """Configuracion del vector store.
 
-    db_type: VectorDBType = VectorDBType.CHROMA
+    Campos obligatorios (el usuario debe proporcionarlos siempre):
+        db_type, collection
+
+    Campos condicionales (validados en __post_init__):
+        path → requerido si db_type es CHROMA
+        pinecone_index_name → requerido si db_type es PINECONE
+
+    Campos opcionales:
+        pinecone_api_key
+    """
+
+    # --- Obligatorios ---
+    db_type: VectorDBType
+    collection: str
+
+    # --- Condicionales (dependen del db_type) ---
     path: Optional[str] = None
-    collection: str = "langchain"
     pinecone_index_name: Optional[str] = None
     pinecone_api_key: Optional[str] = None
 
@@ -71,7 +91,7 @@ class VectorDBConfig:
 
 @dataclass(frozen=True)
 class RetrieverConfig:
-    """Configuracion del retriever."""
+    """Configuracion del retriever. Todos los campos son opcionales."""
 
     search_type: SearchType = SearchType.MMR
     search_k: int = 2
@@ -84,7 +104,7 @@ class RetrieverConfig:
 
 @dataclass(frozen=True)
 class SplitterConfig:
-    """Configuracion del text splitter para ingesta."""
+    """Configuracion del text splitter para ingesta. Todos los campos son opcionales."""
 
     chunk_size: int = 5000
     chunk_overlap: int = 1000
@@ -98,13 +118,19 @@ class SplitterConfig:
 class ConfigRAGElements:
     """Configuracion completa del engine RAG.
 
-    Se compone de sub-dataclasses para evitar un god object.
-    Las API keys se resuelven desde variables de entorno por cada proveedor
-    (GOOGLE_API_KEY, OPENAI_API_KEY, etc.), siguiendo el patron estandar de LangChain.
+    Campos obligatorios:
+        llm → LLMConfig (el usuario debe crearlo explicitamente)
+        vector_db → VectorDBConfig (el usuario debe crearlo explicitamente)
+
+    Campos opcionales:
+        retriever, splitter, rag_template, multi_query_prompt
     """
 
-    llm: LLMConfig = field(default_factory=LLMConfig)
-    vector_db: VectorDBConfig = field(default_factory=lambda: VectorDBConfig(path="./chroma_db"))
+    # --- Obligatorios (sin default → error si no se pasan) ---
+    llm: LLMConfig
+    vector_db: VectorDBConfig
+
+    # --- Opcionales (con default) ---
     retriever: RetrieverConfig = field(default_factory=RetrieverConfig)
     splitter: SplitterConfig = field(default_factory=SplitterConfig)
     rag_template: Optional[str] = None

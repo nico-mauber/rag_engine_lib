@@ -14,20 +14,54 @@ from rag_engine.config import (
 )
 
 
-class TestLLMConfig:
-    def test_defaults(self):
-        cfg = LLMConfig()
-        assert cfg.provider == LLMProvider.GOOGLE
-        assert cfg.embedding_model == "models/gemini-embedding-001"
-        assert cfg.query_temperature == 0.0
+# -- Helpers para crear configs validas rapidamente --
 
-    def test_custom_values(self):
-        cfg = LLMConfig(provider=LLMProvider.OPENAI, embedding_model="text-embedding-3-small")
-        assert cfg.provider == LLMProvider.OPENAI
-        assert cfg.embedding_model == "text-embedding-3-small"
+def _llm(**overrides):
+    defaults = dict(
+        provider=LLMProvider.GOOGLE,
+        embedding_model="models/gemini-embedding-001",
+        query_model="models/gemini-2.5-flash",
+        generation_model="models/gemini-2.5-flash",
+        api_key="test-key",
+    )
+    defaults.update(overrides)
+    return LLMConfig(**defaults)
+
+
+def _vdb(**overrides):
+    defaults = dict(db_type=VectorDBType.CHROMA, collection="langchain", path="/tmp/chroma")
+    defaults.update(overrides)
+    return VectorDBConfig(**defaults)
+
+
+class TestLLMConfig:
+    def test_required_fields(self):
+        cfg = _llm()
+        assert cfg.provider == LLMProvider.GOOGLE
+        assert cfg.api_key == "test-key"
+
+    def test_missing_provider_raises(self):
+        with pytest.raises(TypeError):
+            LLMConfig(
+                embedding_model="x", query_model="x",
+                generation_model="x", api_key="x",
+            )
+
+    def test_missing_api_key_raises(self):
+        with pytest.raises(TypeError):
+            LLMConfig(
+                provider=LLMProvider.GOOGLE,
+                embedding_model="x", query_model="x",
+                generation_model="x",
+            )
+
+    def test_optional_defaults(self):
+        cfg = _llm()
+        assert cfg.query_temperature == 0.0
+        assert cfg.generation_temperature == 0.0
 
     def test_frozen(self):
-        cfg = LLMConfig()
+        cfg = _llm()
         with pytest.raises(AttributeError):
             cfg.provider = LLMProvider.OPENAI  # type: ignore[misc]
 
@@ -35,22 +69,28 @@ class TestLLMConfig:
 class TestVectorDBConfig:
     def test_chroma_requires_path(self):
         with pytest.raises(ValueError, match="path es requerido"):
-            VectorDBConfig(db_type=VectorDBType.CHROMA, path=None)
+            VectorDBConfig(db_type=VectorDBType.CHROMA, collection="test", path=None)
 
-    def test_chroma_with_path(self):
-        cfg = VectorDBConfig(db_type=VectorDBType.CHROMA, path="/tmp/chroma")
+    def test_chroma_ok(self):
+        cfg = VectorDBConfig(db_type=VectorDBType.CHROMA, collection="docs", path="/tmp/chroma")
         assert cfg.path == "/tmp/chroma"
 
     def test_pinecone_requires_index_name(self):
         with pytest.raises(ValueError, match="pinecone_index_name es requerido"):
-            VectorDBConfig(db_type=VectorDBType.PINECONE)
+            VectorDBConfig(db_type=VectorDBType.PINECONE, collection="test")
 
-    def test_pinecone_with_index(self):
+    def test_pinecone_ok(self):
         cfg = VectorDBConfig(
             db_type=VectorDBType.PINECONE,
+            collection="test",
             pinecone_index_name="my-index",
+            pinecone_api_key="pk-123",
         )
         assert cfg.pinecone_index_name == "my-index"
+
+    def test_missing_db_type_raises(self):
+        with pytest.raises(TypeError):
+            VectorDBConfig(collection="test", path="/tmp")
 
 
 class TestRetrieverConfig:
@@ -70,25 +110,23 @@ class TestSplitterConfig:
 
 
 class TestConfigRAGElements:
-    def test_defaults(self):
-        cfg = ConfigRAGElements()
+    def test_requires_llm_and_vector_db(self):
+        with pytest.raises(TypeError):
+            ConfigRAGElements()
+
+    def test_ok_with_required_fields(self):
+        cfg = ConfigRAGElements(llm=_llm(), vector_db=_vdb())
         assert isinstance(cfg.llm, LLMConfig)
         assert isinstance(cfg.vector_db, VectorDBConfig)
         assert isinstance(cfg.retriever, RetrieverConfig)
         assert isinstance(cfg.splitter, SplitterConfig)
+
+    def test_optional_defaults(self):
+        cfg = ConfigRAGElements(llm=_llm(), vector_db=_vdb())
         assert cfg.rag_template is None
         assert cfg.multi_query_prompt is None
 
-    def test_custom_sub_configs(self):
-        cfg = ConfigRAGElements(
-            llm=LLMConfig(provider=LLMProvider.OPENAI),
-            vector_db=VectorDBConfig(path="/tmp/test"),
-            retriever=RetrieverConfig(search_k=5),
-        )
-        assert cfg.llm.provider == LLMProvider.OPENAI
-        assert cfg.retriever.search_k == 5
-
     def test_frozen(self):
-        cfg = ConfigRAGElements()
+        cfg = ConfigRAGElements(llm=_llm(), vector_db=_vdb())
         with pytest.raises(AttributeError):
             cfg.rag_template = "test"  # type: ignore[misc]

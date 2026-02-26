@@ -7,9 +7,42 @@ from unittest.mock import MagicMock, patch
 import pytest
 from langchain_core.documents import Document
 
-from rag_engine.config import ConfigRAGElements, RetrieverConfig, SearchType, VectorDBConfig
+from rag_engine.config import (
+    ConfigRAGElements,
+    LLMConfig,
+    LLMProvider,
+    RetrieverConfig,
+    VectorDBConfig,
+    VectorDBType,
+)
 from rag_engine.engine import RAGEngine
 from rag_engine.models import SearchResponse
+
+
+# -- Helpers --
+
+def _llm(**overrides):
+    defaults = dict(
+        provider=LLMProvider.GOOGLE,
+        embedding_model="models/gemini-embedding-001",
+        query_model="models/gemini-2.5-flash",
+        generation_model="models/gemini-2.5-flash",
+        api_key="test-key",
+    )
+    defaults.update(overrides)
+    return LLMConfig(**defaults)
+
+
+def _vdb(**overrides):
+    defaults = dict(db_type=VectorDBType.CHROMA, collection="langchain", path="/tmp/test")
+    defaults.update(overrides)
+    return VectorDBConfig(**defaults)
+
+
+def _config(**overrides):
+    defaults = dict(llm=_llm(), vector_db=_vdb())
+    defaults.update(overrides)
+    return ConfigRAGElements(**defaults)
 
 
 @pytest.fixture
@@ -47,7 +80,7 @@ class TestRAGEngineInit:
         mock_build_retriever.return_value = MagicMock()
         mock_build_chain.return_value = MagicMock()
 
-        config = ConfigRAGElements(vector_db=VectorDBConfig(path="/tmp/test"))
+        config = _config()
         engine = RAGEngine(
             config=config,
             embeddings=mock_embeddings,
@@ -81,9 +114,8 @@ class TestRAGEngineQuery:
         }
         mock_build_chain.return_value = mock_chain
 
-        config = ConfigRAGElements(vector_db=VectorDBConfig(path="/tmp/test"))
         engine = RAGEngine(
-            config=config,
+            config=_config(),
             embeddings=mock_embeddings,
             llm_generation=mock_llm,
             llm_queries=mock_llm,
@@ -110,9 +142,8 @@ class TestRAGEngineQuery:
         mock_chain.invoke.side_effect = RuntimeError("API down")
         mock_build_chain.return_value = mock_chain
 
-        config = ConfigRAGElements(vector_db=VectorDBConfig(path="/tmp/test"))
         engine = RAGEngine(
-            config=config,
+            config=_config(),
             embeddings=mock_embeddings,
             llm_generation=mock_llm,
             llm_queries=mock_llm,
@@ -135,12 +166,8 @@ class TestGetRetrieverInfo:
         mock_build_retriever.return_value = MagicMock()
         mock_build_chain.return_value = MagicMock()
 
-        config = ConfigRAGElements(
-            vector_db=VectorDBConfig(path="/tmp/test"),
-            retriever=RetrieverConfig(enable_hybrid_search=True),
-        )
         engine = RAGEngine(
-            config=config,
+            config=_config(retriever=RetrieverConfig(enable_hybrid_search=True)),
             embeddings=mock_embeddings,
             llm_generation=mock_llm,
             llm_queries=mock_llm,
@@ -159,12 +186,8 @@ class TestGetRetrieverInfo:
         mock_build_retriever.return_value = MagicMock()
         mock_build_chain.return_value = MagicMock()
 
-        config = ConfigRAGElements(
-            vector_db=VectorDBConfig(path="/tmp/test"),
-            retriever=RetrieverConfig(enable_hybrid_search=False),
-        )
         engine = RAGEngine(
-            config=config,
+            config=_config(retriever=RetrieverConfig(enable_hybrid_search=False)),
             embeddings=mock_embeddings,
             llm_generation=mock_llm,
             llm_queries=mock_llm,

@@ -10,12 +10,11 @@ Biblioteca Python para construir sistemas RAG (Retrieval-Augmented Generation) c
 
 - **Desacoplada de UI** — No depende de Streamlit, Flask ni ninguna interfaz. Se usa como cualquier otra libreria Python.
 - **Multi-proveedor de LLM** — Google Gemini y OpenAI. Extensible a otros proveedores.
-- **Multi-vector DB** — ChromaDB (local) y Pinecone (cloud). Cambiar entre ellos es solo una linea de configuracion.
+- **Multi-vector DB** — ChromaDB (local) y Pinecone (cloud). Cambiar entre ellos es solo cambiar la config.
 - **Single-pass retrieval** — La cadena RAG retorna la respuesta y los documentos fuente en una sola invocacion, sin busquedas duplicadas.
 - **Busqueda hibrida** — Combina MMR (Maximal Marginal Relevance), MultiQuery y Ensemble para maximizar la calidad del retrieval.
 - **Ingesta standalone** — `DocumentIngester` permite cargar PDFs sin necesidad de instanciar el engine completo.
-- **Configuracion compuesta** — Sub-dataclasses para LLM, vector DB, retriever y splitter. Sin god objects.
-- **API keys flexibles** — Se pueden pasar por codigo (desde un `.env`, base de datos, etc.) o dejar que se resuelvan automaticamente desde variables de entorno.
+- **Configuracion explicita** — El usuario siempre declara que proveedor, modelos y API key usa. Sin magia oculta.
 
 ---
 
@@ -64,15 +63,28 @@ pip install -e "C:\ruta\a\rag_engine_lib[all]"
 
 ## Configuracion de API keys
 
-Hay dos formas de configurar las API keys. Usa la que prefieras.
+Las API keys se pasan siempre por codigo, a traves de la config. Vos decidis de donde las lees: un archivo `.env`, una variable de entorno, un secrets manager, o directamente hardcodeadas para pruebas.
 
-### Opcion A: Pasar las keys por codigo (recomendado)
+### Ejemplo con archivo .env (recomendado)
 
-La forma mas clara y explicita. Vos controlas de donde vienen las keys: un archivo `.env`, una base de datos, un secrets manager, o hardcodeadas para pruebas rapidas.
+Instalar `python-dotenv`:
+
+```bash
+pip install python-dotenv
+```
+
+Crear un archivo `.env` en la raiz de tu proyecto:
+
+```env
+GOOGLE_API_KEY=AIzaSy...
+PINECONE_API_KEY=pcsk_...
+```
+
+En tu codigo:
 
 ```python
 import os
-from dotenv import load_dotenv  # pip install python-dotenv
+from dotenv import load_dotenv
 from rag_engine import (
     RAGEngine,
     ConfigRAGElements,
@@ -82,7 +94,7 @@ from rag_engine import (
     LLMProvider,
 )
 
-load_dotenv()  # carga variables desde un archivo .env
+load_dotenv()
 
 config = ConfigRAGElements(
     llm=LLMConfig(
@@ -90,70 +102,32 @@ config = ConfigRAGElements(
         embedding_model="models/gemini-embedding-001",
         query_model="models/gemini-2.5-flash",
         generation_model="models/gemini-2.5-flash",
-        api_key=os.getenv("MI_GOOGLE_KEY"),       # <-- tu API key de Google
+        api_key=os.getenv("GOOGLE_API_KEY"),
     ),
     vector_db=VectorDBConfig(
-        db_type=VectorDBType.PINECONE,
-        pinecone_index_name="mi-indice",
-        pinecone_api_key=os.getenv("MI_PINECONE_KEY"),  # <-- tu API key de Pinecone
+        db_type=VectorDBType.CHROMA,
+        collection="langchain",
+        path="./mi_chroma_db",
     ),
 )
-
-engine = RAGEngine(config=config)
 ```
 
-El archivo `.env` en la raiz de tu proyecto:
-
-```env
-MI_GOOGLE_KEY=AIzaSy...
-MI_PINECONE_KEY=pcsk_...
-```
-
-Los nombres de las variables en el `.env` los elegis vos. Pueden ser `MI_GOOGLE_KEY`, `GOOGLE_KEY`, `API_GEMINI`, o lo que quieras — vos los lees con `os.getenv()` y se los pasas a la config.
+Los nombres de las variables en el `.env` los elegis vos. Pueden ser `GOOGLE_API_KEY`, `MI_KEY`, o lo que quieras — vos los lees con `os.getenv()` y se los pasas a la config.
 
 **Importante:** Agrega `.env` a tu `.gitignore` para no subir las keys al repositorio.
-
-### Opcion B: Variables de entorno del sistema
-
-Si **no** pasas `api_key` en la config (lo dejas en `None`), la libreria no falla — simplemente deja que LangChain busque las keys en variables de entorno con nombres fijos:
-
-- Google busca: `GOOGLE_API_KEY`
-- OpenAI busca: `OPENAI_API_KEY`
-- Pinecone busca: `PINECONE_API_KEY`
-
-Para setearlas:
-
-**Windows (cmd) — dura solo mientras la terminal este abierta:**
-
-```bash
-set GOOGLE_API_KEY=tu_google_api_key
-set PINECONE_API_KEY=tu_pinecone_api_key
-```
-
-**Windows (permanente) — queda para siempre en el sistema:**
-
-```bash
-setx GOOGLE_API_KEY "tu_google_api_key"
-```
-
-**Linux / macOS:**
-
-```bash
-export GOOGLE_API_KEY=tu_google_api_key
-```
-
-Esta opcion es mas simple (no necesitas `python-dotenv` ni `os.getenv`) pero es menos explicita: las keys quedan "invisibles" en el entorno del sistema y no se ve en tu codigo de donde vienen.
 
 ---
 
 ## Guia rapida
 
-### 1. Consultar documentos ya indexados
-
-Si ya tenes una base de datos vectorial con documentos cargados:
+### 1. Consultar documentos ya indexados (ChromaDB)
 
 ```python
-from rag_engine import RAGEngine, ConfigRAGElements, VectorDBConfig, LLMConfig, LLMProvider
+import os
+from dotenv import load_dotenv
+from rag_engine import RAGEngine, ConfigRAGElements, VectorDBConfig, VectorDBType, LLMConfig, LLMProvider
+
+load_dotenv()
 
 config = ConfigRAGElements(
     llm=LLMConfig(
@@ -161,9 +135,11 @@ config = ConfigRAGElements(
         embedding_model="models/gemini-embedding-001",
         query_model="models/gemini-2.5-flash",
         generation_model="models/gemini-2.5-flash",
-        api_key="tu_google_api_key",
+        api_key=os.getenv("GOOGLE_API_KEY"),
     ),
     vector_db=VectorDBConfig(
+        db_type=VectorDBType.CHROMA,
+        collection="langchain",
         path="./mi_chroma_db",
     ),
 )
@@ -182,11 +158,22 @@ for doc in response.source_documents:
 Si tenes PDFs y queres crear la base de datos vectorial desde cero:
 
 ```python
-from rag_engine import ConfigRAGElements, VectorDBConfig
+from rag_engine import ConfigRAGElements, VectorDBConfig, VectorDBType, LLMConfig, LLMProvider
 from rag_engine.ingestion import DocumentIngester
 
 config = ConfigRAGElements(
-    vector_db=VectorDBConfig(path="./mi_chroma_db"),
+    llm=LLMConfig(
+        provider=LLMProvider.GOOGLE,
+        embedding_model="models/gemini-embedding-001",
+        query_model="models/gemini-2.5-flash",
+        generation_model="models/gemini-2.5-flash",
+        api_key="tu_google_api_key",
+    ),
+    vector_db=VectorDBConfig(
+        db_type=VectorDBType.CHROMA,
+        collection="langchain",
+        path="./mi_chroma_db",
+    ),
 )
 
 ingester = DocumentIngester(config=config)
@@ -198,11 +185,9 @@ Despues de ingestar, ya podes consultar usando el ejemplo del paso 1.
 
 ### 3. Usar Pinecone en lugar de ChromaDB
 
-Solo cambia la configuracion del vector_db:
+Solo cambia la configuracion del `vector_db`:
 
 ```python
-from rag_engine import ConfigRAGElements, VectorDBConfig, VectorDBType, LLMConfig, LLMProvider
-
 config = ConfigRAGElements(
     llm=LLMConfig(
         provider=LLMProvider.GOOGLE,
@@ -213,6 +198,7 @@ config = ConfigRAGElements(
     ),
     vector_db=VectorDBConfig(
         db_type=VectorDBType.PINECONE,
+        collection="langchain",
         pinecone_index_name="mi-indice",
         pinecone_api_key="tu_pinecone_api_key",
     ),
@@ -225,11 +211,9 @@ Todo lo demas (engine, ingestion, queries) funciona exactamente igual.
 
 ### 4. Usar OpenAI en lugar de Google
 
-Solo cambia la configuracion del LLM:
+Solo cambia la configuracion del `llm`:
 
 ```python
-from rag_engine import ConfigRAGElements, VectorDBConfig, LLMConfig, LLMProvider
-
 config = ConfigRAGElements(
     llm=LLMConfig(
         provider=LLMProvider.OPENAI,
@@ -238,7 +222,11 @@ config = ConfigRAGElements(
         generation_model="gpt-4o",
         api_key="tu_openai_api_key",
     ),
-    vector_db=VectorDBConfig(path="./mi_chroma_db"),
+    vector_db=VectorDBConfig(
+        db_type=VectorDBType.CHROMA,
+        collection="langchain",
+        path="./mi_chroma_db",
+    ),
 )
 ```
 
@@ -246,31 +234,29 @@ config = ConfigRAGElements(
 
 ## Referencia de configuracion
 
-La configuracion se compone de sub-dataclasses independientes:
-
 ### LLMConfig
 
-| Parametro              | Tipo         | Default                        | Descripcion                          |
-|------------------------|--------------|--------------------------------|--------------------------------------|
-| `provider`             | LLMProvider  | `GOOGLE`                       | Proveedor: `GOOGLE` o `OPENAI`       |
-| `embedding_model`      | str          | `models/gemini-embedding-001`  | Modelo para generar embeddings       |
-| `query_model`          | str          | `models/gemini-2.5-flash`      | Modelo para reformular consultas     |
-| `generation_model`     | str          | `models/gemini-2.5-flash`      | Modelo para generar respuestas       |
-| `query_temperature`    | float        | `0.0`                          | Temperatura del modelo de consultas  |
-| `generation_temperature` | float      | `0.0`                          | Temperatura del modelo de generacion |
-| `api_key`              | str o None   | None                           | API key del proveedor LLM. Si es None, se busca en variables de entorno |
+| Parametro              | Tipo         | Obligatorio | Default | Descripcion                          |
+|------------------------|--------------|-------------|---------|--------------------------------------|
+| `provider`             | LLMProvider  | SI          | —       | Proveedor: `GOOGLE` o `OPENAI`       |
+| `embedding_model`      | str          | SI          | —       | Modelo para generar embeddings       |
+| `query_model`          | str          | SI          | —       | Modelo para reformular consultas     |
+| `generation_model`     | str          | SI          | —       | Modelo para generar respuestas       |
+| `api_key`              | str          | SI          | —       | API key del proveedor LLM            |
+| `query_temperature`    | float        | NO          | `0.0`   | Temperatura del modelo de consultas  |
+| `generation_temperature` | float      | NO          | `0.0`   | Temperatura del modelo de generacion |
 
 ### VectorDBConfig
 
-| Parametro             | Tipo         | Default      | Descripcion                                |
-|-----------------------|--------------|--------------|--------------------------------------------|
-| `db_type`             | VectorDBType | `CHROMA`     | Tipo: `CHROMA` o `PINECONE`                |
-| `path`                | str o None   | None         | Ruta al directorio de ChromaDB (requerido para CHROMA) |
-| `collection`          | str          | `langchain`  | Nombre de la coleccion en ChromaDB         |
-| `pinecone_index_name` | str o None   | None         | Nombre del indice en Pinecone (requerido para PINECONE) |
-| `pinecone_api_key`    | str o None   | None         | API key de Pinecone. Si es None, se busca en variables de entorno |
+| Parametro             | Tipo         | Obligatorio | Default     | Descripcion                                |
+|-----------------------|--------------|-------------|-------------|--------------------------------------------|
+| `db_type`             | VectorDBType | SI          | —           | Tipo: `CHROMA` o `PINECONE`                |
+| `collection`          | str          | SI          | —           | Nombre de la coleccion                     |
+| `path`                | str o None   | Solo CHROMA | None        | Ruta al directorio de ChromaDB             |
+| `pinecone_index_name` | str o None   | Solo PINECONE | None      | Nombre del indice en Pinecone              |
+| `pinecone_api_key`    | str o None   | NO          | None        | API key de Pinecone                        |
 
-### RetrieverConfig
+### RetrieverConfig (todo opcional)
 
 | Parametro              | Tipo              | Default      | Descripcion                                   |
 |------------------------|-------------------|--------------|-----------------------------------------------|
@@ -282,7 +268,7 @@ La configuracion se compone de sub-dataclasses independientes:
 | `similarity_threshold` | float             | `0.70`       | Umbral minimo de similitud                    |
 | `ensemble_weights`     | tuple[float,float]| `(0.7, 0.3)` | Pesos del Ensemble (MultiQuery, Similarity)  |
 
-### SplitterConfig
+### SplitterConfig (todo opcional)
 
 | Parametro       | Tipo | Default | Descripcion                          |
 |-----------------|------|---------|--------------------------------------|
@@ -358,7 +344,7 @@ venv\Scripts\activate
 # 2. Instalar la libreria desde GitHub
 pip install "rag-engine[all] @ git+https://github.com/nico-mauber/rag_engine_lib.git"
 
-# 3. (Opcional) Instalar python-dotenv para cargar keys desde .env
+# 3. Instalar python-dotenv para cargar keys desde .env
 pip install python-dotenv
 ```
 
@@ -373,16 +359,23 @@ Crear `main.py`:
 ```python
 import os
 from dotenv import load_dotenv
-from rag_engine import RAGEngine, ConfigRAGElements, VectorDBConfig, LLMConfig, LLMProvider
+from rag_engine import RAGEngine, ConfigRAGElements, VectorDBConfig, VectorDBType, LLMConfig, LLMProvider
 
 load_dotenv()
 
 config = ConfigRAGElements(
     llm=LLMConfig(
         provider=LLMProvider.GOOGLE,
+        embedding_model="models/gemini-embedding-001",
+        query_model="models/gemini-2.5-flash",
+        generation_model="models/gemini-2.5-flash",
         api_key=os.getenv("GOOGLE_API_KEY"),
     ),
-    vector_db=VectorDBConfig(path="./mi_chroma_db"),
+    vector_db=VectorDBConfig(
+        db_type=VectorDBType.CHROMA,
+        collection="langchain",
+        path="./mi_chroma_db",
+    ),
 )
 
 engine = RAGEngine(config=config)
@@ -411,6 +404,7 @@ Los tests usan mocks y no requieren API keys ni bases de datos reales.
 
 ## Notas de diseno
 
-- **RAGEngine es inmutable** — Una vez creado, no se puede reconfigurar. Para cambiar la configuracion, se crea una nueva instancia. Esto simplifica el estado interno y evita bugs de reconfiguracion parcial.
+- **RAGEngine es inmutable** — Una vez creado, no se puede reconfigurar. Para cambiar la configuracion, se crea una nueva instancia.
+- **Configuracion explicita** — No hay valores magicos. El usuario siempre declara su proveedor, modelos y API key. Si falta algo obligatorio, da error inmediato.
 - **Dependency injection** — Se pueden inyectar objetos LLM, embeddings o vectorstore pre-configurados en el constructor de `RAGEngine` y `DocumentIngester`, util para testing o casos avanzados.
 - **Lazy imports** — Las dependencias de cada proveedor (Google, OpenAI, Chroma, Pinecone) se importan solo cuando se necesitan, evitando errores si no estan instaladas.
