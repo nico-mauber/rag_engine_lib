@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "rag-engine"
+version = "0.1.0"
+description = "Biblioteca RAG desacoplada de UI para asistentes con LangChain"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = [
+    "langchain-core>=1,<2",
+    "langchain-text-splitters>=1,<2",
+]
+
+[project.optional-dependencies]
+google = [
+    "langchain-google-genai>=4,<5",
+]
+openai = [
+    "langchain-openai>=1,<2",
+]
+chroma = [
+    "langchain-chroma>=0.2",
+]
+pinecone = [
+    "langchain-pinecone>=0.2,<1",
+]
+hybrid = [
+    "langchain-classic>=1,<2",
+]
+pdf = [
+    "langchain-community>=0.4,<1",
+    "pypdf>=4,<6",
+]
+dev = [
+    "pytest>=8,<9",
+    "pytest-cov>=5,<6",
+]
+all = [
+    "rag-engine[google,openai,chroma,pinecone,hybrid,pdf,dev]",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["rag_engine"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
