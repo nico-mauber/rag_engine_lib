@@ -29,16 +29,22 @@ Biblioteca Python para construir sistemas RAG (Retrieval-Augmented Generation) c
 
 ## Instalacion
 
-### Desde una ruta local
+### Desde GitHub
 
 ```bash
 # Instalar con todas las dependencias
-pip install -e "C:\ruta\a\rag_engine_lib[all]"
+pip install "rag-engine[all] @ git+https://github.com/nico-mauber/rag_engine_lib.git"
 
 # O instalar solo lo que necesites
-pip install -e "C:\ruta\a\rag_engine_lib[google,chroma]"
-pip install -e "C:\ruta\a\rag_engine_lib[google,pinecone]"
-pip install -e "C:\ruta\a\rag_engine_lib[openai,chroma]"
+pip install "rag-engine[google,chroma] @ git+https://github.com/nico-mauber/rag_engine_lib.git"
+pip install "rag-engine[google,pinecone] @ git+https://github.com/nico-mauber/rag_engine_lib.git"
+pip install "rag-engine[openai,chroma] @ git+https://github.com/nico-mauber/rag_engine_lib.git"
+```
+
+### Desde una ruta local (desarrollo)
+
+```bash
+pip install -e "C:\ruta\a\rag_engine_lib[all]"
 ```
 
 ### Grupos de dependencias disponibles
